@@ -240,294 +240,224 @@ void handleDisplay(){
 //
 //RGB TO LMS conversion for the first image (source)
 //
-void rgb_lms_image1(){
+Pixel rgb_lms(Pixel rgbPixmap){
 
+  float l, m, s;
+  //create a new Pixel array to store the lms pixmap
+  Pixel LMSPixel;
 
-  float r, g, b;
+  //prevents log(0) from happening
+  rgbPixmap.r = max(FLT_TRUE_MIN, rgbPixmap.r);
+  rgbPixmap.g = max(FLT_TRUE_MIN, rgbPixmap.g);
+  rgbPixmap.b = max(FLT_TRUE_MIN, rgbPixmap.b);
+  LMSPixel.a = rgbPixmap.a;
+  
+  //apply the matrix to convert to lms
+  l = 0.3811*rgbPixmap.r + 0.5783*rgbPixmap.g + 0.0402*rgbPixmap.b;
+  m = 0.1967*rgbPixmap.r + 0.7244*rgbPixmap.g + 0.0782*rgbPixmap.b;
+  s = 0.0241*rgbPixmap.r + 0.1288*rgbPixmap.g + 0.8444*rgbPixmap.b;
 
-  for(int row = 0; row < ImHeight; ++row) {
-      for(int col = 0; col < ImWidth; ++col) {
-      
-        r = max(FLT_TRUE_MIN, float(0.3811*source[row][col].r + 0.5783*source[row][col].g + 0.0402*source[row][col].b));
-        g = max(FLT_TRUE_MIN, float(0.1967*source[row][col].r + 0.7244*source[row][col].g + 0.0782*source[row][col].b));
-        b = max(FLT_TRUE_MIN, float(0.0241*source[row][col].r + 0.1288*source[row][col].g + 0.8444*source[row][col].b));
-        
-        if(r == 0.0)
-          r = 1.0;
-        if(g == 0.0)
-          g = 1.0;
-        if(b == 0.0)
-          b = 1.0;
-        L = log10(r);
-        M = log10(g);
-        S = log10(b);
+  //convert to logrithmic space
+  LMSPixel.r = log10(l);
+  LMSPixel.g = log10(m);
+  LMSPixel.b = log10(s);
 
-        source[row][col].r = L;
-        source[row][col].g = M;
-        source[row][col].b = S;
-      }
-  }
-
-
-}
-
-//
-//RGB TO LMS conversion for the second image (target)
-//
-void rgb_lms_image2(){
-
-
-  float red_target, green_target, blue_target;
-
-  for(int x = 0; x < ImHeight2; ++x) {
-      for(int y = 0; y < ImWidth2; ++y) {
-      
-        red_target = max(FLT_TRUE_MIN, float(0.3811*target[x][y].r + 0.5783*target[x][y].g + 0.0402*target[x][y].b));
-        green_target = max(FLT_TRUE_MIN, float(0.1967*target[x][y].r + 0.7244*target[x][y].g + 0.0782*target[x][y].b));
-        blue_target = max(FLT_TRUE_MIN, float(0.0241*target[x][y].r + 0.1288*target[x][y].g + 0.8444*target[x][y].b));
-
-        L2 = log10(red_target);
-        M2 = log10(green_target);
-        S2 = log10(blue_target);
-
-        target[x][y].r = L2;
-        target[x][y].g = M2;
-        target[x][y].b = S2;
-      }
-  }
-
+  return LMSPixel;
 
 }
 
 //
 // LMS TO LAB conversion
 //
-void lms_lab(){
+Pixel lms_lab(Pixel LMSPixel){
 
-  //variables for source
+  //variables
+  float l, a, b;
+  Pixel LABPixel;
+
+    //apply 1st matrix
+  l = 1.0*LMSPixel.r + 1.0*LMSPixel.g + 1.0*LMSPixel.b;
+  a = 1.0*LMSPixel.r + 1.0*LMSPixel.g + -2.0*LMSPixel.b;
+  b = 1.0*LMSPixel.r + -1.0*LMSPixel.g + 0.0*LMSPixel.b;
+  LABPixel.a = LMSPixel.a;
+  //apply 2nd matrix
+  LABPixel.r = l / pow(3.f, 0.5);
+  LABPixel.g = a / pow(6.f, 0.5);
+  LABPixel.b = b / pow(2.f, 0.5);
+      
+  return LABPixel;
+}
+
+//
+//conversion of image from lab to lms colorspace
+//
+Pixel lab_lms(Pixel LABPixel){
+
+  //create variables
+  float l, m, s;
+  Pixel LMSPixel;
+
+ //apply 1st matrix
+  l = LABPixel.r * (pow(3.f, 0.5)/3.f);
+  m = LABPixel.g * (pow(6.f, 0.5)/6.f);
+  s = LABPixel.b * (pow(2.f, 0.5)/2.f);
+
+  //apply 2nd matrix
+  LMSPixel.r = 1.0*l + 1.0*m + 1.0*s;
+  LMSPixel.g = 1.0*l + 1.0*m + -1.0*s;
+  LMSPixel.b = 1.0*l + -2.0*m + 0.0*s;
+
+  LMSPixel.a = LABPixel.a;
+
+  return LMSPixel;
+}
+
+//
+//Conversion of image from lms to rgb colorspace
+//
+Pixel lms_rgb(Pixel LMSPixel){
+
   float r, g, b;
-  float l, a, beta;
-  //variables for target
-  float red_target, green_target, blue_target;
-  float l2, a2, beta2;
+  Pixel RGBPixel;
 
-  //
-  //setting all the average values to 0
-  //
-  avg_red_source = 0;
-  avg_blue_source = 0;
-  avg_green_source = 0;
+  //reduce from log space  
+  r = pow(10, LMSPixel.r);
+  g = pow(10, LMSPixel.g);
+  b = pow(10, LMSPixel.b);
 
-  avg_red_target = 0;
-  avg_blue_target = 0;
-  avg_green_target = 0;
+  //apply matrix
+  RGBPixel.r = 4.4679*r + -3.5873*g + 0.1193*b;
+  RGBPixel.g = -1.2186*r + 2.3809*g + -0.1624*b;
+  RGBPixel.b = 0.0497*r + -0.2439*g + 1.2045*b;
 
+  //bound check to sure final RGB value is between 0 and 1
+  RGBPixel.r = max(0.f, min(1.f, RGBPixel.r));
+  RGBPixel.g = max(0.f, min(1.f, RGBPixel.g));
+  RGBPixel.b = max(0.f, min(1.f, RGBPixel.b));
+  RGBPixel.a = LMSPixel.a;
 
-  for(int row = 0; row < ImHeight; ++row) {
-      for(int col = 0; col < ImWidth; ++col) {
-        
-        r = 1.0*source[row][col].r + 1.0*source[row][col].g + 1.0*source[row][col].b;
-        g = 1.0*source[row][col].r + 1.0*source[row][col].g + -2.0*source[row][col].b;
-        b = 1.0*source[row][col].r + -1.0*source[row][col].g + 0.0*source[row][col].b;
-
-        l = (1.0/sqrt(3.0))*r;
-        a = (1.0/sqrt(6.0))*g;
-        beta =(1.0/sqrt(2.0))*b;
-
-        source[row][col].r = l;
-        source[row][col].g = a;
-        source[row][col].b = beta;
-
-        avg_red_source += source[row][col].r;
-        avg_green_source += source[row][col].g;
-        avg_blue_source += source[row][col].b;
-      }
-  }
-
-  avg_red_source = avg_red_source/(ImHeight*ImWidth);
-  avg_green_source = avg_green_source/(ImHeight*ImWidth);
-  avg_blue_source = avg_blue_source/(ImHeight*ImWidth);
-
-    for(int row = 0; row < ImHeight2; ++row) {
-      for(int col = 0; col < ImWidth2; ++col) {
-      
-        red_target = 1.0*target[row][col].r + 1.0*target[row][col].g + 1.0*target[row][col].b;
-        green_target = 1.0*target[row][col].r + 1.0*target[row][col].g + -2.0*target[row][col].b;
-        blue_target = 1.0*target[row][col].r + -1.0*target[row][col].g + 0.0*target[row][col].b;
-
-        l2 = (1.0/sqrt(3.0))*red_target;
-        a2 = (1.0/sqrt(6.0))*green_target;
-        beta2 = (1.0/sqrt(2.0))*blue_target;
-
-        target[row][col].r = l2;
-        target[row][col].g = a2;
-        target[row][col].b = beta2;
-
-        avg_red_target += target[row][col].r;
-        avg_green_target += target[row][col].g;
-        avg_blue_target += target[row][col].b;
-
-   
-
-      }
-  }
-
-
-  avg_red_target = avg_red_target/(ImHeight2*ImWidth2);
-  avg_green_target = avg_green_target/(ImHeight2*ImWidth2);
-  avg_blue_target = avg_blue_target/(ImHeight2*ImWidth2);
-
+  return RGBPixel;
 
 }
 
-//
-//Calculation of the standard deviation
-//
-void standard_deviation(){
+void synthesis(){
 
-float sumr = 0.0, sumg = 0.0, sumb = 0.0; 
-float mean_red_of_source, mean_green_of_source, mean_blue_of_source;
-float std_red_source = 0.0, std_green_source = 0.0, std_blue_source = 0.0;
-float sumred_target = 0.0, sumgreen_target = 0.0, sumblue_target = 0.0;
-float mean_red_of_target, mean_green_of_target, mean_blue_of_target;
-float std_red_target = 0.0, std_green_target = 0.0, std_blue_target = 0.0;
+    //
+    // Stddev calculations for target image
+    //
+    double lAvg1 = 0, aAvg1 = 0, bAvg1 = 0;
+    double lStddev1 = 0, aStddev1 = 0, bStddev1 = 0;
 
+    //converstion of source image from rgb to lab
+    for(int i=0; i<ImHeight; i++){
+      for(int j=0; j<ImWidth; j++){
+        source[i][j] = rgb_lms(source[i][j]);
+        source[i][j] = lms_lab(source[i][j]);
 
-    for(int row = 0; row < ImHeight; ++row) {
-      for(int col = 0; col < ImWidth; ++col) {
-        sumr += source[row][col].r;
-        sumg += source[row][col].g;
-        sumb += source[row][col].b;
-      }
-    }
-
-  //mean for the second image
-  mean_red_of_source = sumr / (ImHeight * ImWidth);
-  mean_green_of_source = sumg / (ImHeight * ImWidth);
-  mean_blue_of_source = sumb / (ImHeight * ImWidth);
-
-    //subtract the mean from the source image
-    for(int row = 0; row < ImHeight; ++row) {
-      for(int col = 0; col < ImWidth; ++col) {
-        std_red_source += pow(source[row][col].r - mean_red_of_source, 2);
-        std_green_source += pow(source[row][col].g - mean_green_of_source, 2);
-        std_blue_source += pow(source[row][col].b - mean_blue_of_source, 2);
-      }
-    }
-
-  std_red_source = sqrt(std_red_source/(ImHeight*ImWidth));
-  std_green_source = sqrt(std_green_source/(ImHeight*ImWidth));
-  std_blue_source = sqrt(std_blue_source/(ImHeight*ImWidth));
-
-    for(int row = 0; row < ImHeight2; ++row) {
-      for(int col = 0; col < ImWidth2; ++col) {
-        sumred_target += target[row][col].r;
-        sumgreen_target += target[row][col].g;
-        sumblue_target += target[row][col].b;
-      }
-    }
-
-
-  //mean for the first image loaded
-  mean_red_of_target = sumred_target / (ImHeight2 * ImWidth2);
-  mean_green_of_target = sumgreen_target / (ImHeight2 * ImWidth2);
-  mean_blue_of_target = sumblue_target / (ImHeight2 * ImWidth2);
-
-    //subtract the mean from the target image
-    for(int row = 0; row < ImHeight2; ++row) {
-      for(int col = 0; col < ImWidth2; ++col) {
-        std_red_target += pow(target[row][col].r - mean_red_of_target, 2);
-        std_green_target += pow(target[row][col].g - mean_green_of_target, 2);
-        std_blue_target += pow(target[row][col].b - mean_blue_of_target, 2);
-      }
-    }
-  
-  std_red_target = sqrt(std_red_target/(ImHeight2*ImWidth2));
-  std_green_target = sqrt(std_green_target/(ImHeight2*ImWidth2));
-  std_blue_target = sqrt(std_blue_target/(ImHeight2*ImWidth2));
-
-    //subtract the average of image 2 from the target image
-    for(int row = 0; row < ImHeight2; ++row) {
-      for(int col = 0; col < ImWidth2; ++col) {
-        target[row][col].r = target[row][col].r - avg_red_target;
-        target[row][col].g = target[row][col].g - avg_green_target;
-        target[row][col].b = target[row][col].b - avg_blue_target;
+        //calculate the sums for each channel
+        lAvg1 += source[i][j].r;
+        aAvg1 += source[i][j].g;
+        bAvg1 += source[i][j].b;
 
       }
     }
 
-    //multiply by the standard deviation ratio of source / target
-    for(int row = 0; row < ImHeight2; ++row) {
-      for(int col = 0; col < ImWidth2; ++col) {
-        target[row][col].r = (std_red_source/std_red_target) * target[row][col].r;
-        target[row][col].g = (std_green_source/std_green_target) * target[row][col].g;
-        target[row][col].b = (std_blue_source/std_blue_target) * target[row][col].b;
-      }
+    cout << lAvg1 << endl;
+    cout << "check" << endl;
+
+    //calculate the averages for stddev
+    lAvg1 /= (ImHeight*ImWidth);
+    aAvg1 /= (ImHeight*ImWidth);
+    bAvg1 /= (ImHeight*ImWidth);
+
+    //calculate the stddev for LAB channels
+    for(int i=0; i<ImHeight; i++){
+        for(int j=0; j<ImWidth; j++){
+            lStddev1 += pow(source[i][j].r - lAvg1, 2);
+            aStddev1 += pow(source[i][j].g - aAvg1, 2);
+            bStddev1 += pow(source[i][j].b - bAvg1, 2);
+        }
+    }
+    lStddev1 = pow(lStddev1 / (ImHeight*ImWidth), 0.5);
+    aStddev1 = pow(aStddev1 / (ImHeight*ImWidth), 0.5);
+    bStddev1 = pow(bStddev1 / (ImHeight*ImWidth), 0.5);
+    
+    cout << "check2" << endl;
+    //
+    // Stddev calculations for source image
+    //
+    double lAvg2 = 0, aAvg2 = 0, bAvg2 = 0;
+    double lStddev2 = 0, aStddev2 = 0, bStddev2 = 0;
+
+    //convert RGBtoLAB
+    for(int i=0; i<ImHeight2; i++){
+        for(int j=0; j<ImWidth2; j++){
+            target[i][j] = rgb_lms(target[i][j]);
+            target[i][j] = lms_lab(target[i][j]);
+
+            //calc sums
+            lAvg2 += target[i][j].r;
+            aAvg2 += target[i][j].g;
+            bAvg2 += target[i][j].b;
+        }
     }
 
-    //add the average of image 1 to the target image
-    for(int row = 0; row < ImHeight2; ++row) {
-      for(int col = 0; col < ImWidth2; ++col) {
-        target[row][col].r = target[row][col].r + avg_red_source;
-        target[row][col].g = target[row][col].g + avg_green_source;
-        target[row][col].b = target[row][col].b + avg_blue_source;
+cout << lAvg2 << endl;
+cout << "check3" << endl;
 
-      }
+    //calculate averages for stddev
+    lAvg2 /= (ImHeight2*ImWidth2);
+    aAvg2 /= (ImHeight2*ImWidth2);
+    bAvg2 /= (ImHeight2*ImWidth2);
+
+    //calculate stddev for LAB channels
+    for(int i=0; i<ImHeight2; i++){
+        for(int j=0; j< ImWidth2; j++){
+            lStddev2 += pow(target[i][j].r - lAvg2, 2);
+            aStddev2 += pow(target[i][j].g - aAvg2, 2);
+            bStddev2 += pow(target[i][j].b - bAvg2, 2);
+        }
+    }
+    lStddev2 = pow(lStddev2 / (ImHeight2*ImWidth2), 0.5);
+    aStddev2 = pow(aStddev2 / (ImHeight2*ImWidth2), 0.5);
+    bStddev2 = pow(bStddev2 / (ImHeight2*ImWidth2), 0.5);
+    
+    cout << "check4" << endl;
+    //
+    // perform transfer
+    //
+    for(int i=0; i<ImHeight; i++){
+        for(int j=0; j<ImWidth; j++){
+            //subtract target averages
+            source[i][j].r -= lAvg1;   
+            source[i][j].g -= aAvg1;
+            source[i][j].b -= bAvg1;
+
+            //multipy by target/source stddev
+            source[i][j].r *= (lStddev1/lStddev2);
+            source[i][j].g *= (aStddev1/aStddev2);
+            source[i][j].b *= (bStddev1/bStddev2);
+
+            //add source averages
+            source[i][j].r += lAvg2;
+            source[i][j].g += aAvg2;
+            source[i][j].b += bAvg2;
+        }
     }
 
-}
-
-//
-//conversion of the target image from lab to lms colorspace
-//
-void lab_lms(){
-
-  float r = 0.0, g = 0.0, b = 0.0;
-
-    for(int row = 0; row < ImHeight2; ++row) {
-      for(int col = 0; col < ImWidth2; ++col) {
-
-        r = (sqrt(3)/3)*target[row][col].r;
-        g = (sqrt(6)/6)*target[row][col].g;
-        b = (sqrt(2)/2)*target[row][col].b;
-
-        L2 = 1.0*r + 1.0*g + 1.0*b;
-        M2 = 1.0*r + 1.0*g + -1.0*b;
-        S2 = 1.0*r + -2.0*g + 0.0*b;
-
-        target[row][col].r = L2;
-        target[row][col].g = M2;
-        target[row][col].b = S2;
-
-      }
-  }
-}
-
-//
-//Conversion of the target image from lms to rgb colorspace
-//
-void lms_rgb(){
-
-  float r = 0.0, g = 0.0, b = 0.0;
-
-    for(int row = 0; row < ImHeight2; ++row) {
-      for(int col = 0; col < ImWidth2; ++col) {
-      
-
-        target[row][col].r = pow(10, target[row][col].r);
-        target[row][col].g = pow(10, target[row][col].g);
-        target[row][col].b = pow(10, target[row][col].b);
-
-        r = 4.4679*target[row][col].r + -3.5873*target[row][col].g + 0.1193*target[row][col].b;
-        g = -1.2186*target[row][col].r + 2.3809*target[row][col].g + -0.1624*target[row][col].b;
-        b = 0.0497*target[row][col].r + -0.2439*target[row][col].g + 1.2045*target[row][col].b;
-
-        target[row][col].r = r;
-        target[row][col].g = g;
-        target[row][col].b = b;
-
-      }
+  cout << "check5" << endl;
+    //
+    // convert LAB to RGB
+    //
+    for(int i=0; i<ImHeight; i++){
+        for(int j=0; j<ImWidth; j++){
+            source[i][j] = lab_lms(source[i][j]);
+            source[i][j] = lms_rgb(source[i][j]);
+        }
     }
+  cout << "check6" << endl;
+  return;
+
 }
 
 //
@@ -551,16 +481,22 @@ void handleKey(unsigned char key, int x, int y){
       }
       break;
     
-    case 'l': // 'l' - convert RGB space to LMS
-    case 'L':
-      rgb_lms_image1(); //for the source image
-      rgb_lms_image2(); //for the target image
-      lms_lab(); //handles the conversion for both images
-      standard_deviation();
-      lab_lms(); //conversion of the target image
-      lms_rgb(); //conversion of the target image
-      glutPostRedisplay();
+    // case 'l': // 'l' - convert RGB space to LMS
+    // case 'L':
+    //   rgb_lms_image1(); //for the source image
+    //   rgb_lms_image2(); //for the target image
+    //   lms_lab(); //handles the conversion for both images
+    //   standard_deviation();
+    //   lab_lms(); //conversion of the target image
+    //   lms_rgb(); //conversion of the target image
+    //   glutPostRedisplay();
 
+    //   break;
+
+    case 's': //'s' - Synthesis main code
+    case 'S':
+      synthesis();
+      glutPostRedisplay();
       break;
 	
 	case 'q':		// q or ESC - quit
@@ -656,9 +592,7 @@ int main(int argc, char* argv[]){
       WinWidth = ImWidth;
       WinHeight = ImHeight;
     }
-
     copyImage();
-
     if(readImage(argv[2])){
       WinWidth = ImWidth;
       WinHeight = ImHeight;
@@ -666,14 +600,14 @@ int main(int argc, char* argv[]){
     //saveimage = argv[3];
   }
 
+  //load the image if present, and size the window to matc
+  //as well as create the name to save the image out to when finished
   if(argc == 4 ){
     if(readImage(argv[1])){
       WinWidth = ImWidth;
       WinHeight = ImHeight;
     }
-
     copyImage();
-
     if(readImage(argv[2])){
       WinWidth = ImWidth;
       WinHeight = ImHeight;
